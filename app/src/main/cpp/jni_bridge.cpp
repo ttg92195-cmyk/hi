@@ -1,197 +1,144 @@
 /*
  * ============================================
- *   🏎️ JNI Bridge - C++ to Java
- *   Connects GameEngine with Android Java UI
+ *   JNI BRIDGE - 3D Racing Game
+ *   Connects Java GLSurfaceView to C++ Engine
  * ============================================
  */
 
 #include <jni.h>
-#include <string>
-#include "game_engine.h"
+#include <GLES2/gl2.h>
+#include <android/log.h>
+#include <chrono>
+#include "game3d_engine.h"
+#include "renderer3d.h"
 
-// Global game engine instance
-static GameEngine* engine = nullptr;
+#define LOG_TAG "RacingGame3D"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+static Game3DEngine* gameEngine = nullptr;
+static Renderer3D* renderer = nullptr;
+static auto lastFrameTime = std::chrono::high_resolution_clock::now();
 
 extern "C" {
 
 // ====== Lifecycle ======
 
 JNIEXPORT void JNICALL
-Java_com_racing_game_GameView_nativeInit(JNIEnv* env, jobject thiz) {
-    if (engine == nullptr) {
-        engine = new GameEngine();
-    } else {
-        engine->restart();
+Java_com_racing_game_GameRenderer_nativeInit(JNIEnv* env, jobject thiz) {
+    LOGI("nativeInit called");
+    if (gameEngine) { delete gameEngine; gameEngine = nullptr; }
+    if (renderer) { delete renderer; renderer = nullptr; }
+
+    gameEngine = new Game3DEngine();
+    renderer = new Renderer3D();
+    renderer->setEngine(gameEngine);
+    renderer->init();
+    lastFrameTime = std::chrono::high_resolution_clock::now();
+    LOGI("nativeInit done");
+}
+
+JNIEXPORT void JNICALL
+Java_com_racing_game_GameRenderer_nativeResize(JNIEnv* env, jobject thiz, jint width, jint height) {
+    if (renderer) {
+        renderer->resize(width, height);
     }
 }
 
 JNIEXPORT void JNICALL
-Java_com_racing_game_GameView_nativeUpdate(JNIEnv* env, jobject thiz, jfloat delta_time) {
-    if (engine != nullptr) {
-        engine->update(delta_time);
-    }
+Java_com_racing_game_GameRenderer_nativeRender(JNIEnv* env, jobject thiz) {
+    if (!gameEngine || !renderer) return;
+
+    // Calculate delta time
+    auto now = std::chrono::high_resolution_clock::now();
+    float dt = std::chrono::duration<float>(now - lastFrameTime).count();
+    lastFrameTime = now;
+    if (dt > 0.1f) dt = 0.1f;
+
+    gameEngine->update(dt);
+    renderer->render();
 }
 
 JNIEXPORT void JNICALL
-Java_com_racing_game_GameView_nativeMoveLeft(JNIEnv* env, jobject thiz) {
-    if (engine != nullptr) {
-        engine->moveLeft();
-    }
+Java_com_racing_game_GameRenderer_nativeDestroy(JNIEnv* env, jobject thiz) {
+    LOGI("nativeDestroy");
+    if (renderer) { renderer->cleanup(); delete renderer; renderer = nullptr; }
+    if (gameEngine) { delete gameEngine; gameEngine = nullptr; }
+}
+
+// ====== Input ======
+
+JNIEXPORT void JNICALL
+Java_com_racing_game_GameRenderer_nativeSteerLeft(JNIEnv* env, jobject thiz, jfloat dt) {
+    if (gameEngine) gameEngine->steerLeft(dt);
 }
 
 JNIEXPORT void JNICALL
-Java_com_racing_game_GameView_nativeMoveRight(JNIEnv* env, jobject thiz) {
-    if (engine != nullptr) {
-        engine->moveRight();
-    }
+Java_com_racing_game_GameRenderer_nativeSteerRight(JNIEnv* env, jobject thiz, jfloat dt) {
+    if (gameEngine) gameEngine->steerRight(dt);
 }
 
 JNIEXPORT void JNICALL
-Java_com_racing_game_GameView_nativeSetPlayerX(JNIEnv* env, jobject thiz, jfloat x) {
-    if (engine != nullptr) {
-        engine->setPlayerPosition(x);
-    }
+Java_com_racing_game_GameRenderer_nativeSetPlayerX(JNIEnv* env, jobject thiz, jfloat x) {
+    if (gameEngine) gameEngine->setPlayerX(x);
 }
 
 JNIEXPORT void JNICALL
-Java_com_racing_game_GameView_nativeNitro(JNIEnv* env, jobject thiz) {
-    if (engine != nullptr) {
-        engine->activateNitro();
-    }
+Java_com_racing_game_GameRenderer_nativeNitro(JNIEnv* env, jobject thiz) {
+    if (gameEngine) gameEngine->nitro();
 }
 
 JNIEXPORT void JNICALL
-Java_com_racing_game_GameView_nativePause(JNIEnv* env, jobject thiz) {
-    if (engine != nullptr) {
-        engine->togglePause();
-    }
+Java_com_racing_game_GameRenderer_nativePause(JNIEnv* env, jobject thiz) {
+    if (gameEngine) gameEngine->togglePause();
 }
 
 JNIEXPORT void JNICALL
-Java_com_racing_game_GameView_nativeRestart(JNIEnv* env, jobject thiz) {
-    if (engine != nullptr) {
-        engine->restart();
-    }
-}
-
-JNIEXPORT void JNICALL
-Java_com_racing_game_GameView_nativeDestroy(JNIEnv* env, jobject thiz) {
-    if (engine != nullptr) {
-        delete engine;
-        engine = nullptr;
-    }
+Java_com_racing_game_GameRenderer_nativeRestart(JNIEnv* env, jobject thiz) {
+    if (gameEngine) gameEngine->restart();
+    if (renderer) renderer->initScenery();
 }
 
 // ====== State Getters ======
 
-JNIEXPORT jfloat JNICALL
-Java_com_racing_game_GameView_nativeGetPlayerX(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getState().playerX : 50.0f;
-}
-
-JNIEXPORT jfloat JNICALL
-Java_com_racing_game_GameView_nativeGetPlayerY(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getState().playerY : 80.0f;
+JNIEXPORT jint JNICALL
+Java_com_racing_game_GameRenderer_nativeGetScore(JNIEnv* env, jobject thiz) {
+    return gameEngine ? gameEngine->getState().score : 0;
 }
 
 JNIEXPORT jint JNICALL
-Java_com_racing_game_GameView_nativeGetScore(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getState().score : 0;
+Java_com_racing_game_GameRenderer_nativeGetHighScore(JNIEnv* env, jobject thiz) {
+    return gameEngine ? gameEngine->getState().highScore : 0;
 }
 
 JNIEXPORT jint JNICALL
-Java_com_racing_game_GameView_nativeGetHighScore(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getState().highScore : 0;
+Java_com_racing_game_GameRenderer_nativeGetCoins(JNIEnv* env, jobject thiz) {
+    return gameEngine ? gameEngine->getState().coins : 0;
 }
 
 JNIEXPORT jint JNICALL
-Java_com_racing_game_GameView_nativeGetCoins(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getState().coins : 0;
+Java_com_racing_game_GameRenderer_nativeGetLives(JNIEnv* env, jobject thiz) {
+    return gameEngine ? gameEngine->getState().lives : 0;
 }
 
 JNIEXPORT jint JNICALL
-Java_com_racing_game_GameView_nativeGetLives(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getState().lives : 0;
-}
-
-JNIEXPORT jint JNICALL
-Java_com_racing_game_GameView_nativeGetSpeedKmh(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getSpeedKmh() : 0;
+Java_com_racing_game_GameRenderer_nativeGetSpeedKmh(JNIEnv* env, jobject thiz) {
+    return gameEngine ? gameEngine->getSpeedKmh() : 0;
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_racing_game_GameView_nativeIsGameOver(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getState().gameOver : false;
+Java_com_racing_game_GameRenderer_nativeIsGameOver(JNIEnv* env, jobject thiz) {
+    return gameEngine ? gameEngine->getState().gameOver : false;
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_racing_game_GameView_nativeIsPaused(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getState().paused : false;
+Java_com_racing_game_GameRenderer_nativeIsPaused(JNIEnv* env, jobject thiz) {
+    return gameEngine ? gameEngine->getState().paused : false;
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_racing_game_GameView_nativeHasShield(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getState().shield : false;
-}
-
-JNIEXPORT jfloat JNICALL
-Java_com_racing_game_GameView_nativeGetRoadOffset(JNIEnv* env, jobject thiz) {
-    return engine ? engine->getRoadOffset() : 0.0f;
-}
-
-// ====== Obstacle Data ======
-
-JNIEXPORT jint JNICALL
-Java_com_racing_game_GameView_nativeGetObstacleCount(JNIEnv* env, jobject thiz) {
-    return engine ? (jint)engine->getState().obstacles.size() : 0;
-}
-
-JNIEXPORT jfloat JNICALL
-Java_com_racing_game_GameView_nativeGetObstacleX(JNIEnv* env, jobject thiz, jint index) {
-    if (engine && index >= 0 && index < (jint)engine->getState().obstacles.size()) {
-        return engine->getState().obstacles[index].x;
-    }
-    return 0.0f;
-}
-
-JNIEXPORT jfloat JNICALL
-Java_com_racing_game_GameView_nativeGetObstacleY(JNIEnv* env, jobject thiz, jint index) {
-    if (engine && index >= 0 && index < (jint)engine->getState().obstacles.size()) {
-        return engine->getState().obstacles[index].y;
-    }
-    return 0.0f;
-}
-
-JNIEXPORT jfloat JNICALL
-Java_com_racing_game_GameView_nativeGetObstacleWidth(JNIEnv* env, jobject thiz, jint index) {
-    if (engine && index >= 0 && index < (jint)engine->getState().obstacles.size()) {
-        return engine->getState().obstacles[index].width;
-    }
-    return 0.0f;
-}
-
-JNIEXPORT jfloat JNICALL
-Java_com_racing_game_GameView_nativeGetObstacleHeight(JNIEnv* env, jobject thiz, jint index) {
-    if (engine && index >= 0 && index < (jint)engine->getState().obstacles.size()) {
-        return engine->getState().obstacles[index].height;
-    }
-    return 0.0f;
-}
-
-JNIEXPORT jint JNICALL
-Java_com_racing_game_GameView_nativeGetObstacleType(JNIEnv* env, jobject thiz, jint index) {
-    if (engine && index >= 0 && index < (jint)engine->getState().obstacles.size()) {
-        return (jint)engine->getState().obstacles[index].type;
-    }
-    return 0;
-}
-
-JNIEXPORT jboolean JNICALL
-Java_com_racing_game_GameView_nativeIsObstacleActive(JNIEnv* env, jobject thiz, jint index) {
-    if (engine && index >= 0 && index < (jint)engine->getState().obstacles.size()) {
-        return engine->getState().obstacles[index].active;
-    }
-    return false;
+Java_com_racing_game_GameRenderer_nativeHasShield(JNIEnv* env, jobject thiz) {
+    return gameEngine ? gameEngine->getState().shield : false;
 }
 
 } // extern "C"

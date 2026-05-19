@@ -1,0 +1,11 @@
+*.apk
+*.aab
+*.o
+*.so
+*.class
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.DS_Store

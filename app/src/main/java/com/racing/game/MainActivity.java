@@ -1,11 +1,11 @@
 package com.racing.game;
 
+import android.app.Activity;
 import android.os.Bundle;
 import android.view.Window;
 import android.view.WindowManager;
-import androidx.appcompat.app.AppCompatActivity;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity {
 
     private GameView gameView;
 
@@ -13,7 +13,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Full screen
+        // Full screen - no title
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -33,8 +33,13 @@ public class MainActivity extends AppCompatActivity {
             | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         );
 
-        gameView = new GameView(this);
-        setContentView(gameView);
+        try {
+            gameView = new GameView(this);
+            setContentView(gameView);
+        } catch (Exception e) {
+            e.printStackTrace();
+            finish();
+        }
     }
 
     @Override

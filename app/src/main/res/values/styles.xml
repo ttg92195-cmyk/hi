@@ -4,11 +4,9 @@
     <color name="colorPrimaryDark">#16213e</color>
     <color name="colorAccent">#4CAF50</color>
 
-    <style name="Theme.RacingGame" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+    <style name="Theme.RacingGame" parent="android:Theme.NoTitleBar.Fullscreen">
         <item name="android:windowBackground">@color/colorPrimary</item>
         <item name="android:windowNoTitle">true</item>
-        <item name="android:windowActionBar">false</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="android:statusBarColor">@color/colorPrimaryDark</item>
     </style>
 </resources>

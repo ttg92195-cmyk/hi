@@ -42,17 +42,24 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     public native int nativeGetObstacleType(int index);
     public native boolean nativeIsObstacleActive(int index);
 
+    private static boolean nativeLoaded = false;
+
     static {
-        System.loadLibrary("racinggame");
+        try {
+            System.loadLibrary("racinggame");
+            nativeLoaded = true;
+        } catch (UnsatisfiedLinkError e) {
+            nativeLoaded = false;
+            e.printStackTrace();
+        }
     }
 
     // ====== Game Thread ======
     private GameThread gameThread;
-    private boolean running = false;
+    private volatile boolean running = false;
     private long lastTime = 0;
 
     // ====== Touch ======
-    private float touchStartX = 0;
     private float touchLastX = 0;
     private boolean touching = false;
 
@@ -68,34 +75,19 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     private static final float CAR_WIDTH = 6.0f;
     private static final float CAR_HEIGHT = 10.0f;
 
-    // ====== Paints ======
-    private Paint roadPaint;
-    private Paint grassPaint;
-    private Paint linePaint;
-    private Paint dashPaint;
-    private Paint playerPaint;
-    private Paint playerShieldPaint;
-    private Paint slowCarPaint;
-    private Paint fastCarPaint;
-    private Paint truckPaint;
-    private Paint coinPaint;
-    private Paint hudPaint;
-    private Paint hudSmallPaint;
-    private Paint gameOverPaint;
-    private Paint buttonPaint;
-    private Paint nitroPaint;
-    private Paint explosionPaint;
-    private Paint bgPaint;
-
-    // ====== Scale Helper ======
+    // ====== Scale ======
     private float scaleX = 1.0f;
     private float scaleY = 1.0f;
     private float offsetX = 0.0f;
     private float offsetY = 0.0f;
 
-    // ====== Explosion particles ======
-    private float explosionX = -1, explosionY = -1;
-    private float explosionTimer = 0;
+    // ====== Paints ======
+    private Paint roadPaint, grassPaint, linePaint, dashPaint;
+    private Paint playerPaint, playerShieldPaint, playerRoofPaint;
+    private Paint slowCarPaint, fastCarPaint, truckPaint, coinPaint;
+    private Paint hudPaint, hudSmallPaint, gameOverPaint;
+    private Paint buttonPaint, nitroPaint, shadowPaint;
+    private Paint windPaint, headPaint, coinInnerPaint, coinTextPaint;
 
     public GameView(Context context) {
         super(context);
@@ -103,7 +95,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         setFocusable(true);
 
         initPaints();
-        nativeInit();
+
+        if (nativeLoaded) {
+            nativeInit();
+        }
     }
 
     private void initPaints() {
@@ -129,7 +124,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         playerShieldPaint = new Paint();
         playerShieldPaint.setColor(Color.parseColor("#00BCD4"));
-        playerPaint.setStyle(Paint.Style.FILL);
+        playerShieldPaint.setStyle(Paint.Style.FILL);
+
+        playerRoofPaint = new Paint();
+        playerRoofPaint.setColor(Color.parseColor("#388E3C"));
+        playerRoofPaint.setStyle(Paint.Style.FILL);
 
         slowCarPaint = new Paint();
         slowCarPaint.setColor(Color.parseColor("#F44336"));
@@ -147,20 +146,31 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         coinPaint.setColor(Color.parseColor("#FFD700"));
         coinPaint.setStyle(Paint.Style.FILL);
 
+        coinInnerPaint = new Paint();
+        coinInnerPaint.setColor(Color.parseColor("#FFA000"));
+        coinInnerPaint.setStyle(Paint.Style.FILL);
+
+        coinTextPaint = new Paint();
+        coinTextPaint.setColor(Color.parseColor("#5D4037"));
+        coinTextPaint.setTextSize(20);
+        coinTextPaint.setFakeBoldText(true);
+        coinTextPaint.setAntiAlias(true);
+        coinTextPaint.setTextAlign(Paint.Align.CENTER);
+
         hudPaint = new Paint();
         hudPaint.setColor(Color.WHITE);
-        hudPaint.setTextSize(40);
+        hudPaint.setTextSize(36);
         hudPaint.setFakeBoldText(true);
         hudPaint.setAntiAlias(true);
 
         hudSmallPaint = new Paint();
         hudSmallPaint.setColor(Color.WHITE);
-        hudSmallPaint.setTextSize(28);
+        hudSmallPaint.setTextSize(24);
         hudSmallPaint.setAntiAlias(true);
 
         gameOverPaint = new Paint();
         gameOverPaint.setColor(Color.RED);
-        gameOverPaint.setTextSize(72);
+        gameOverPaint.setTextSize(64);
         gameOverPaint.setFakeBoldText(true);
         gameOverPaint.setAntiAlias(true);
 
@@ -174,18 +184,22 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         nitroPaint.setStyle(Paint.Style.FILL);
         nitroPaint.setAntiAlias(true);
 
-        explosionPaint = new Paint();
-        explosionPaint.setColor(Color.parseColor("#FF5722"));
-        explosionPaint.setStyle(Paint.Style.FILL);
+        shadowPaint = new Paint();
+        shadowPaint.setColor(Color.parseColor("#1a1a1a"));
+        shadowPaint.setAlpha(80);
+        shadowPaint.setStyle(Paint.Style.FILL);
 
-        bgPaint = new Paint();
-        bgPaint.setColor(Color.parseColor("#1B5E20"));
-        bgPaint.setStyle(Paint.Style.FILL);
+        windPaint = new Paint();
+        windPaint.setColor(Color.parseColor("#81D4FA"));
+        windPaint.setStyle(Paint.Style.FILL);
+
+        headPaint = new Paint();
+        headPaint.setColor(Color.YELLOW);
+        headPaint.setStyle(Paint.Style.FILL);
     }
 
     private void updateScale() {
         if (screenWidth > 0 && screenHeight > 0) {
-            // Fit game into screen with letterboxing
             float gameAspect = GAME_WIDTH / GAME_HEIGHT;
             float screenAspect = (float) screenWidth / screenHeight;
 
@@ -212,37 +226,32 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     @Override
     public void draw(Canvas canvas) {
         super.draw(canvas);
-        if (canvas == null) return;
+        if (canvas == null || !nativeLoaded) return;
 
-        canvas.drawColor(Color.parseColor("#1a1a2e"));
+        try {
+            canvas.drawColor(Color.parseColor("#1a1a2e"));
 
-        drawGrass(canvas);
-        drawRoad(canvas);
-        drawLaneMarkings(canvas);
-        drawObstacles(canvas);
-        drawPlayerCar(canvas);
-        drawHUD(canvas);
+            drawGrass(canvas);
+            drawRoad(canvas);
+            drawLaneMarkings(canvas);
+            drawObstacles(canvas);
+            drawPlayerCar(canvas);
+            drawHUD(canvas);
 
-        if (nativeIsGameOver()) {
-            drawGameOver(canvas);
-        } else if (nativeIsPaused()) {
-            drawPaused(canvas);
+            if (nativeIsGameOver()) {
+                drawGameOver(canvas);
+            } else if (nativeIsPaused()) {
+                drawPaused(canvas);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
     private void drawGrass(Canvas canvas) {
-        // Left grass
-        canvas.drawRect(
-            gx(0), gy(0), gx(ROAD_LEFT), gy(GAME_HEIGHT),
-            grassPaint
-        );
-        // Right grass
-        canvas.drawRect(
-            gx(ROAD_RIGHT), gy(0), gx(GAME_WIDTH), gy(GAME_HEIGHT),
-            grassPaint
-        );
+        canvas.drawRect(gx(0), gy(0), gx(ROAD_LEFT), gy(GAME_HEIGHT), grassPaint);
+        canvas.drawRect(gx(ROAD_RIGHT), gy(0), gx(GAME_WIDTH), gy(GAME_HEIGHT), grassPaint);
 
-        // Grass stripe details
         Paint stripePaint = new Paint();
         stripePaint.setColor(Color.parseColor("#3a7a2a"));
         stripePaint.setStyle(Paint.Style.FILL);
@@ -254,14 +263,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     private void drawRoad(Canvas canvas) {
-        canvas.drawRect(
-            gx(ROAD_LEFT), gy(0), gx(ROAD_RIGHT), gy(GAME_HEIGHT),
-            roadPaint
-        );
-
-        // Road border lines
-        canvas.drawRect(gx(ROAD_LEFT), gy(0), gx(ROAD_LEFT + 0.8f), gy(GAME_HEIGHT), linePaint);
-        canvas.drawRect(gx(ROAD_RIGHT - 0.8f), gy(0), gx(ROAD_RIGHT), gy(GAME_HEIGHT), linePaint);
+        canvas.drawRect(gx(ROAD_LEFT), gy(0), gx(ROAD_RIGHT), gy(GAME_HEIGHT), roadPaint);
+        canvas.drawRect(gx(ROAD_LEFT), gy(0), gx(ROAD_LEFT + gs(0.8f)/scaleX), gy(GAME_HEIGHT), linePaint);
+        canvas.drawRect(gx(ROAD_RIGHT - gs(0.8f)/scaleX), gy(0), gx(ROAD_RIGHT), gy(GAME_HEIGHT), linePaint);
     }
 
     private void drawLaneMarkings(Canvas canvas) {
@@ -272,8 +276,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
             float x = ROAD_LEFT + laneWidth * lane;
             for (float y = -gs(5) + offset; y < gy(GAME_HEIGHT); y += gs(5)) {
                 canvas.drawRect(
-                    gx(x - 0.3f), y,
-                    gx(x + 0.3f), y + gs(3),
+                    gx(x) - gs(0.3f)/2, y,
+                    gx(x) + gs(0.3f)/2, y + gs(3),
                     dashPaint
                 );
             }
@@ -286,139 +290,111 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         boolean hasShield = nativeHasShield();
 
         Paint carPaint = hasShield ? playerShieldPaint : playerPaint;
+        Paint roofPaint = hasShield ? playerShieldPaint : playerRoofPaint;
 
         float left = gx(px - CAR_WIDTH / 2);
         float top = gy(py - CAR_HEIGHT / 2);
         float right = gx(px + CAR_WIDTH / 2);
         float bottom = gy(py + CAR_HEIGHT / 2);
 
-        // Car shadow
-        Paint shadowPaint = new Paint();
-        shadowPaint.setColor(Color.parseColor("#1a1a1a"));
-        shadowPaint.setAlpha(80);
+        // Shadow
         canvas.drawRoundRect(new RectF(left + gs(1), top + gs(1), right + gs(1), bottom + gs(1)),
             gs(1.5f), gs(1.5f), shadowPaint);
 
-        // Car body
+        // Body
         canvas.drawRoundRect(new RectF(left, top, right, bottom),
             gs(1.5f), gs(1.5f), carPaint);
 
-        // Car roof / cockpit
-        Paint roofPaint = new Paint();
-        roofPaint.setColor(hasShield ? Color.parseColor("#0097A7") : Color.parseColor("#388E3C"));
-        roofPaint.setStyle(Paint.Style.FILL);
+        // Roof
         canvas.drawRoundRect(
             new RectF(left + gs(0.8f), top + gs(2), right - gs(0.8f), bottom - gs(2)),
-            gs(1), gs(1), roofPaint
-        );
+            gs(1), gs(1), roofPaint);
 
         // Windshield
-        Paint windPaint = new Paint();
-        windPaint.setColor(Color.parseColor("#81D4FA"));
-        windPaint.setStyle(Paint.Style.FILL);
         canvas.drawRect(
             left + gs(1.2f), top + gs(2.5f),
             right - gs(1.2f), top + gs(5),
-            windPaint
-        );
+            windPaint);
 
         // Headlights
-        Paint headPaint = new Paint();
-        headPaint.setColor(Color.YELLOW);
-        headPaint.setStyle(Paint.Style.FILL);
         canvas.drawCircle(left + gs(1), top + gs(0.5f), gs(0.5f), headPaint);
         canvas.drawCircle(right - gs(1), top + gs(0.5f), gs(0.5f), headPaint);
 
-        // Shield glow effect
+        // Shield glow
         if (hasShield) {
-            Paint shieldPaint = new Paint();
-            shieldPaint.setColor(Color.parseColor("#00BCD4"));
-            shieldPaint.setAlpha(60);
-            shieldPaint.setStyle(Paint.Style.STROKE);
-            shieldPaint.setStrokeWidth(gs(1));
+            Paint shieldGlow = new Paint();
+            shieldGlow.setColor(Color.parseColor("#00BCD4"));
+            shieldGlow.setAlpha(60);
+            shieldGlow.setStyle(Paint.Style.STROKE);
+            shieldGlow.setStrokeWidth(gs(1));
             canvas.drawRoundRect(new RectF(left - gs(1), top - gs(1), right + gs(1), bottom + gs(1)),
-                gs(2), gs(2), shieldPaint);
+                gs(2), gs(2), shieldGlow);
         }
 
-        // Exhaust flame when fast
+        // Exhaust
         int speed = nativeGetSpeedKmh();
         if (speed > 120) {
             Paint flamePaint = new Paint();
             flamePaint.setColor(Color.parseColor("#FF5722"));
             flamePaint.setStyle(Paint.Style.FILL);
             float flameLen = gs(2 + (speed - 120) * 0.05f);
-            canvas.drawRect(
-                left + gs(1.5f), bottom,
-                left + gs(2.5f), bottom + flameLen,
-                flamePaint
-            );
-            canvas.drawRect(
-                right - gs(2.5f), bottom,
-                right - gs(1.5f), bottom + flameLen,
-                flamePaint
-            );
+            canvas.drawRect(left + gs(1.5f), bottom, left + gs(2.5f), bottom + flameLen, flamePaint);
+            canvas.drawRect(right - gs(2.5f), bottom, right - gs(1.5f), bottom + flameLen, flamePaint);
         }
     }
 
     private void drawObstacles(Canvas canvas) {
         int count = nativeGetObstacleCount();
         for (int i = 0; i < count; i++) {
-            if (!nativeIsObstacleActive(i)) continue;
+            try {
+                if (!nativeIsObstacleActive(i)) continue;
 
-            float ox = nativeGetObstacleX(i);
-            float oy = nativeGetObstacleY(i);
-            float ow = nativeGetObstacleWidth(i);
-            float oh = nativeGetObstacleHeight(i);
-            int type = nativeGetObstacleType(i);
+                float ox = nativeGetObstacleX(i);
+                float oy = nativeGetObstacleY(i);
+                float ow = nativeGetObstacleWidth(i);
+                float oh = nativeGetObstacleHeight(i);
+                int type = nativeGetObstacleType(i);
 
-            float left = gx(ox - ow / 2);
-            float top = gy(oy - oh / 2);
-            float right = gx(ox + ow / 2);
-            float bottom = gy(oy + oh / 2);
+                float left = gx(ox - ow / 2);
+                float top = gy(oy - oh / 2);
+                float right = gx(ox + ow / 2);
+                float bottom = gy(oy + oh / 2);
 
-            switch (type) {
-                case 0: // CAR_SLOW
-                    canvas.drawRoundRect(new RectF(left, top, right, bottom),
-                        gs(1.5f), gs(1.5f), slowCarPaint);
-                    // Windows
-                    Paint sw = new Paint();
-                    sw.setColor(Color.parseColor("#E57373"));
-                    canvas.drawRect(left + gs(0.8f), top + gs(1.5f), right - gs(0.8f), top + gs(4), sw);
-                    break;
+                switch (type) {
+                    case 0: // CAR_SLOW
+                        canvas.drawRoundRect(new RectF(left, top, right, bottom),
+                            gs(1.5f), gs(1.5f), slowCarPaint);
+                        Paint sw = new Paint();
+                        sw.setColor(Color.parseColor("#E57373"));
+                        canvas.drawRect(left + gs(0.8f), top + gs(1.5f), right - gs(0.8f), top + gs(4), sw);
+                        break;
 
-                case 1: // CAR_FAST
-                    canvas.drawRoundRect(new RectF(left, top, right, bottom),
-                        gs(1.5f), gs(1.5f), fastCarPaint);
-                    Paint fw = new Paint();
-                    fw.setColor(Color.parseColor("#CE93D8"));
-                    canvas.drawRect(left + gs(0.8f), top + gs(1.5f), right - gs(0.8f), top + gs(4), fw);
-                    break;
+                    case 1: // CAR_FAST
+                        canvas.drawRoundRect(new RectF(left, top, right, bottom),
+                            gs(1.5f), gs(1.5f), fastCarPaint);
+                        Paint fw = new Paint();
+                        fw.setColor(Color.parseColor("#CE93D8"));
+                        canvas.drawRect(left + gs(0.8f), top + gs(1.5f), right - gs(0.8f), top + gs(4), fw);
+                        break;
 
-                case 2: // TRUCK
-                    canvas.drawRoundRect(new RectF(left, top, right, bottom),
-                        gs(1), gs(1), truckPaint);
-                    // Truck cargo line
-                    Paint tl = new Paint();
-                    tl.setColor(Color.parseColor("#E65100"));
-                    canvas.drawRect(left + gs(0.3f), top + gs(2), right - gs(0.3f), top + gs(2.5f), tl);
-                    canvas.drawRect(left + gs(0.3f), top + gs(5), right - gs(0.3f), top + gs(5.5f), tl);
-                    break;
+                    case 2: // TRUCK
+                        canvas.drawRoundRect(new RectF(left, top, right, bottom),
+                            gs(1), gs(1), truckPaint);
+                        Paint tl = new Paint();
+                        tl.setColor(Color.parseColor("#E65100"));
+                        canvas.drawRect(left + gs(0.3f), top + gs(2), right - gs(0.3f), top + gs(2.5f), tl);
+                        canvas.drawRect(left + gs(0.3f), top + gs(5), right - gs(0.3f), top + gs(5.5f), tl);
+                        break;
 
-                case 3: // COIN
-                    Paint coinInner = new Paint();
-                    coinInner.setColor(Color.parseColor("#FFA000"));
-                    coinInner.setStyle(Paint.Style.FILL);
-                    canvas.drawCircle(gx(ox), gy(oy), gs(ow / 2), coinPaint);
-                    canvas.drawCircle(gx(ox), gy(oy), gs(ow / 3), coinInner);
-                    // Dollar sign
-                    Paint ds = new Paint();
-                    ds.setColor(Color.parseColor("#5D4037"));
-                    ds.setTextSize(gs(3));
-                    ds.setFakeBoldText(true);
-                    ds.setAntiAlias(true);
-                    ds.setTextAlign(Paint.Align.CENTER);
-                    canvas.drawText("$", gx(ox), gy(oy) + gs(1), ds);
-                    break;
+                    case 3: // COIN
+                        canvas.drawCircle(gx(ox), gy(oy), gs(ow / 2), coinPaint);
+                        canvas.drawCircle(gx(ox), gy(oy), gs(ow / 3), coinInnerPaint);
+                        coinTextPaint.setTextSize(gs(3));
+                        canvas.drawText("$", gx(ox), gy(oy) + gs(1), coinTextPaint);
+                        break;
+                }
+            } catch (Exception e) {
+                break; // skip this obstacle if error
             }
         }
     }
@@ -446,27 +422,27 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         hudPaint.setColor(Color.parseColor("#FFD700"));
         canvas.drawText("Coins: $" + coins, gx(25), gy(8), hudPaint);
 
-        // Lives (hearts)
+        // Lives
         hudPaint.setColor(Color.RED);
         StringBuilder hearts = new StringBuilder();
-        for (int i = 0; i < lives; i++) hearts.append("\u2665 ");
+        for (int i = 0; i < lives; i++) hearts.append("<3 ");
         canvas.drawText("Lives: " + hearts.toString(), gx(48), gy(8), hudPaint);
 
         // Speed
         hudPaint.setColor(Color.parseColor("#4CAF50"));
         canvas.drawText(speed + " km/h", gx(78), gy(8), hudPaint);
 
-        // High score (small)
+        // High score
         hudSmallPaint.setColor(Color.parseColor("#CE93D8"));
         canvas.drawText("Best: " + highScore, gx(1), gy(11.5f), hudSmallPaint);
 
-        // Shield indicator
+        // Shield
         if (hasShield) {
             hudSmallPaint.setColor(Color.parseColor("#00BCD4"));
             canvas.drawText("[SHIELD]", gx(25), gy(11.5f), hudSmallPaint);
         }
 
-        // Nitro button (bottom right)
+        // Nitro button
         float nbX = gx(85);
         float nbY = gy(88);
         float nbR = gs(4);
@@ -479,7 +455,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         nitroText.setTextAlign(Paint.Align.CENTER);
         canvas.drawText("N2O", nbX, nbY + gs(1), nitroText);
 
-        // Pause button (top right)
+        // Pause button
         float pbX = gx(95);
         float pbY = gy(6);
         float pbR = gs(3);
@@ -494,32 +470,27 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     private void drawGameOver(Canvas canvas) {
-        // Dark overlay
         Paint overlay = new Paint();
         overlay.setColor(Color.BLACK);
         overlay.setAlpha(180);
         overlay.setStyle(Paint.Style.FILL);
         canvas.drawRect(0, 0, screenWidth, screenHeight, overlay);
 
-        // Game Over text
         gameOverPaint.setColor(Color.RED);
         gameOverPaint.setTextAlign(Paint.Align.CENTER);
         canvas.drawText("GAME OVER", screenWidth / 2f, screenHeight / 2f - gs(8), gameOverPaint);
 
-        // Score
         Paint scorePaint = new Paint();
         scorePaint.setColor(Color.YELLOW);
-        scorePaint.setTextSize(48);
+        scorePaint.setTextSize(44);
         scorePaint.setFakeBoldText(true);
         scorePaint.setAntiAlias(true);
         scorePaint.setTextAlign(Paint.Align.CENTER);
         canvas.drawText("Score: " + nativeGetScore(), screenWidth / 2f, screenHeight / 2f, scorePaint);
-
         canvas.drawText("Coins: $" + nativeGetCoins(), screenWidth / 2f, screenHeight / 2f + gs(6), scorePaint);
 
-        // High score
         scorePaint.setColor(Color.parseColor("#CE93D8"));
-        scorePaint.setTextSize(36);
+        scorePaint.setTextSize(32);
         canvas.drawText("Best: " + nativeGetHighScore(), screenWidth / 2f, screenHeight / 2f + gs(12), scorePaint);
 
         // Restart button
@@ -535,7 +506,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         Paint restartText = new Paint();
         restartText.setColor(Color.WHITE);
-        restartText.setTextSize(36);
+        restartText.setTextSize(32);
         restartText.setFakeBoldText(true);
         restartText.setAntiAlias(true);
         restartText.setTextAlign(Paint.Align.CENTER);
@@ -551,7 +522,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         Paint pausePaint = new Paint();
         pausePaint.setColor(Color.YELLOW);
-        pausePaint.setTextSize(64);
+        pausePaint.setTextSize(56);
         pausePaint.setFakeBoldText(true);
         pausePaint.setAntiAlias(true);
         pausePaint.setTextAlign(Paint.Align.CENTER);
@@ -559,7 +530,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
         Paint hintPaint = new Paint();
         hintPaint.setColor(Color.WHITE);
-        hintPaint.setTextSize(28);
+        hintPaint.setTextSize(24);
         hintPaint.setAntiAlias(true);
         hintPaint.setTextAlign(Paint.Align.CENTER);
         canvas.drawText("Tap to Resume", screenWidth / 2f, screenHeight / 2f + gs(6), hintPaint);
@@ -569,16 +540,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (!nativeLoaded) return false;
+
         float x = event.getX();
         float y = event.getY();
 
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                touchStartX = x;
                 touchLastX = x;
                 touching = true;
 
-                // Game Over - check restart button
                 if (nativeIsGameOver()) {
                     float rbW = gs(30);
                     float rbH = gs(8);
@@ -608,7 +579,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                     return true;
                 }
 
-                // Paused - tap to resume
                 if (nativeIsPaused()) {
                     nativePause();
                     return true;
@@ -619,7 +589,6 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
                 if (touching && !nativeIsGameOver() && !nativeIsPaused()) {
                     float dx = x - touchLastX;
                     if (Math.abs(dx) > 5) {
-                        // Convert screen position to game X coordinate
                         float gameX = (x - offsetX) / scaleX;
                         nativeSetPlayerX(gameX);
                         touchLastX = x;
@@ -642,34 +611,42 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         public void run() {
             lastTime = System.nanoTime();
             while (running) {
-                long now = System.nanoTime();
-                float deltaTime = (now - lastTime) / 1_000_000_000.0f;
-                lastTime = now;
-
-                // Cap delta time to avoid spiral of death
-                if (deltaTime > 0.1f) deltaTime = 0.1f;
-
-                nativeUpdate(deltaTime);
-
-                Canvas canvas = null;
                 try {
-                    canvas = getHolder().lockCanvas();
-                    if (canvas != null) {
-                        synchronized (getHolder()) {
-                            draw(canvas);
+                    long now = System.nanoTime();
+                    float deltaTime = (now - lastTime) / 1_000_000_000.0f;
+                    lastTime = now;
+
+                    if (deltaTime > 0.1f) deltaTime = 0.1f;
+
+                    if (nativeLoaded) {
+                        nativeUpdate(deltaTime);
+                    }
+
+                    Canvas canvas = null;
+                    try {
+                        canvas = getHolder().lockCanvas();
+                        if (canvas != null) {
+                            synchronized (getHolder()) {
+                                draw(canvas);
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Surface might be destroyed
+                    } finally {
+                        if (canvas != null) {
+                            try {
+                                getHolder().unlockCanvasAndPost(canvas);
+                            } catch (Exception e) {
+                                // Ignore
+                            }
                         }
                     }
-                } finally {
-                    if (canvas != null) {
-                        getHolder().unlockCanvasAndPost(canvas);
-                    }
-                }
 
-                // ~60 FPS target
-                try {
                     Thread.sleep(16);
                 } catch (InterruptedException e) {
                     break;
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
         }
@@ -707,9 +684,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
         running = false;
         if (gameThread != null) {
             try {
-                gameThread.join();
+                gameThread.join(1000);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                // Ignore
             }
             gameThread = null;
         }
@@ -717,7 +694,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     public void onPause() {
         stopGame();
-        if (!nativeIsGameOver() && !nativeIsPaused()) {
+        if (nativeLoaded && !nativeIsGameOver() && !nativeIsPaused()) {
             nativePause();
         }
     }
@@ -730,6 +707,8 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback {
 
     public void onDestroy() {
         stopGame();
-        nativeDestroy();
+        if (nativeLoaded) {
+            nativeDestroy();
+        }
     }
 }

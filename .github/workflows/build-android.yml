@@ -21,40 +21,13 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew || true
-
-      - name: Create gradlew if not exists
-        run: |
-          if [ ! -f gradlew ]; then
-            echo "Creating gradle wrapper..."
-            mkdir -p gradle/wrapper
-            cat > gradlew << 'EOF'
-          #!/bin/sh
-          exec gradle "$@"
-          EOF
-            chmod +x gradlew
-          fi
+          gradle-version: '8.4'
 
       - name: Build Debug APK
-        run: |
-          cd $GITHUB_WORKSPACE
-          ./gradlew assembleDebug --no-daemon --stacktrace
-
-      - name: Build Release APK
-        run: |
-          cd $GITHUB_WORKSPACE
-          ./gradlew assembleRelease --no-daemon --stacktrace || true
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Find APK files
         run: |
@@ -74,7 +47,7 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: "Racing Game APK v1.0.${{ github.run_number }}"
           body: |
-            ## 🏎️ Console Racing Game - Android APK
+            ## Racing Game - Android APK
 
             Download and install the APK on your Android device:
 
@@ -84,9 +57,9 @@ jobs:
             4. Enjoy the game!
 
             ### Controls
-            - **Touch & Drag** left/right to steer
-            - **N2O button** for nitro boost
-            - **Pause button** (||) in top-right corner
+            - Touch & Drag left/right to steer
+            - N2O button for nitro boost
+            - Pause button (||) in top-right corner
             - Avoid red cars, purple cars, and orange trucks
             - Collect gold coins for bonus points!
           files: output/*.apk

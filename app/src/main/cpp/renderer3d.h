@@ -151,6 +151,9 @@ private:
         glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_SHORT, 0);
     }
 
+public:
+    Renderer3D() : engine(nullptr), screenWidth(0), screenHeight(0), aspect(1.0f) {}
+
     void initScenery() {
         treePositions.clear();
         buildingPositions.clear();
@@ -169,9 +172,6 @@ private:
         lastTreeSpawnZ = 0;
         lastBuildingSpawnZ = 0;
     }
-
-public:
-    Renderer3D() : engine(nullptr), screenWidth(0), screenHeight(0), aspect(1.0f) {}
 
     void init() {
         // Create shader programs

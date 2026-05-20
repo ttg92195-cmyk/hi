@@ -57,7 +57,7 @@ public class GameUIOverlay {
         void onOpenLeaderboard();
         void onOpenSettings();
         void onNitro();
-        void onPause();
+        void onPauseGame();
         void onToggleSound();
     }
 
@@ -117,7 +117,7 @@ public class GameUIOverlay {
         pauseBtn = createHUDText("II", 20, Color.parseColor("#FFFFFF"));
         pauseBtn.setGravity(Gravity.CENTER);
         pauseBtn.setOnClickListener(v -> {
-            if (listener != null) listener.onPause();
+            if (listener != null) listener.onPauseGame();
         });
         LinearLayout.LayoutParams pauseParams = new LinearLayout.LayoutParams(
             (int)(40 * context.getResources().getDisplayMetrics().density),

@@ -6,7 +6,7 @@ import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.FrameLayout;
+import android.widget.FrameLayout;
 import android.view.Window;
 import android.view.WindowManager;
 import android.util.Log;
@@ -203,7 +203,7 @@ public class MainActivity extends Activity implements GameUIOverlay.GameUIListen
     }
 
     @Override
-    public void onPause() {
+    public void onPauseGame() {
         soundManager.playClickSound();
         if (gameView != null && gameView.getRenderer() != null) {
             gameView.getRenderer().nativePause();

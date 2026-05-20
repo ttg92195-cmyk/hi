@@ -96,7 +96,7 @@ public class FirebaseHelper {
     private void signInAnonymously() {
         if (!initialized || mAuth == null) return;
 
-        mAuth.signInAnonymuously()
+        mAuth.signInAnonymously()
             .addOnCompleteListener(task -> {
                 if (task.isSuccessful()) {
                     FirebaseUser user = mAuth.getCurrentUser();

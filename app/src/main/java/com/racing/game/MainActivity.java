@@ -5,9 +5,11 @@ import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.view.Window;
 import android.view.WindowManager;
+import android.util.Log;
 
 public class MainActivity extends Activity {
 
+    private static final String TAG = "MainActivity";
     private GameGLView gameView;
 
     @Override
@@ -20,6 +22,14 @@ public class MainActivity extends Activity {
             WindowManager.LayoutParams.FLAG_FULLSCREEN
         );
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // Initialize Firebase
+        try {
+            FirebaseHelper.getInstance().init();
+            Log.i(TAG, "Firebase initialized");
+        } catch (Exception e) {
+            Log.e(TAG, "Firebase init error: " + e.getMessage());
+        }
 
         try {
             gameView = new GameGLView(this);

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "192638739388",
+    "project_id": "game-586af",
+    "storage_bucket": "game-586af.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:192638739388:android:c469943665a20d5c2e01b9",
+        "android_client_info": {
+          "package_name": "com.racing.game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBH_CDXZsv7dAZvEdiWzmk7OapYoyRYEQE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

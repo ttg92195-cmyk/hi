@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'com.google.gms.google-services'
 }
 
 android {
@@ -10,8 +11,8 @@ android {
         applicationId "com.racing.game"
         minSdk 21
         targetSdk 34
-        versionCode 2
-        versionName "2.0-3D"
+        versionCode 3
+        versionName "3.0-Firebase"
 
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
@@ -49,4 +50,15 @@ android {
 }
 
 dependencies {
+    // Firebase BoM (Bill of Materials)
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+
+    // Firebase Authentication (Anonymous sign-in)
+    implementation 'com.google.firebase:firebase-auth'
+
+    // Firebase Firestore (Leaderboard database)
+    implementation 'com.google.firebase:firebase-firestore'
+
+    // Firebase Analytics
+    implementation 'com.google.firebase:firebase-analytics'
 }
